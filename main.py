@@ -5,20 +5,20 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 import yt_dlp
 
-BOT_TOKEN = os.getenv("8688025512:AAE_lovqJa7GfTdXcVnORzxfsRjF1S_aCrE", "")
+# Bot Token va havolalar
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8688025512:AAE_lovqJa7GfTdXcVnORzxfsRjF1S_aCrE")[cite: 12]
+CHANNEL_URL = "https://t.me/WR4TH_FAMILY"  # Telegram kanalingiz
+INSTA_URL = "https://www.instagram.com/wr4_vortex?stkn=bjJ2a2RrOGxsYjgz"  # Instagram profilingiz[cite: 12]
 
-# Kanal va Instagram havolalari
-INSTA_URL = "https://www.instagram.com/wr4_vortex?stkn=bjJ2a2RrOGxsYjgz'" # O'zingizning Insta profilingiz linki
+dp = Dispatcher()[cite: 12]
+bot = Bot(token=BOT_TOKEN)[cite: 12]
 
-dp = Dispatcher()
-bot = Bot(token=BOT_TOKEN)
-
-# Obuna bo'lish tugmalari
+# Obuna bo'lish va profil tugmalari
 def get_subscription_keyboard():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url=CHANNEL_URL)],
-        [InlineKeyboardButton(text="📸 Mening Instagram profilim", url=INSTA_URL)],
-        [InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub")]
+        [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url=CHANNEL_URL)],[cite: 12]
+        [InlineKeyboardButton(text="📸 Mening Instagram profilim", url=INSTA_URL)],[cite: 12]
+        [InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub")][cite: 12]
     ])
     return keyboard
 
@@ -32,9 +32,8 @@ async def start_handler(message: types.Message):
 @dp.callback_query(F.data == "check_sub")
 async def check_subscription_callback(call: types.CallbackQuery):
     user_name = call.from_user.first_name
-    # Foydalanuvchining niki va ruxsat xabari
     await call.message.answer(
-        f"Xush kelibsiz, **{user_name}**! Botdan foydalanishingiz mumkin. "
+        f"Xush kelibsiz, **{user_name}**! Botdan foydalanishiz mumkin. "
         f"Menga Instagram video havolasini yuboring!",
         parse_mode="Markdown"
     )
@@ -63,7 +62,7 @@ async def download_instagram_video(message: types.Message):
         # Caption / Prompt ajratish
         caption_text = info.get('description') or info.get('title') or "Prompt (tavsif) topilmadi."
         
-        # Musiqa qidirish va tavsiya tugmasi
+        # Musiqa va TOP-10 tavsiya tugmasi
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🎵 Musiqani va TOP-10 ni qidirish", callback_data=f"music_{info.get('id')}")]
         ])
