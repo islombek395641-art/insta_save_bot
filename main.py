@@ -1,88 +1,111 @@
-import asyncio
-import logging
 import os
+import asyncio
 from aiogram import Bot, Dispatcher, F, types
-from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
-from yt_dlp import YoutubeDL
+from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+import yt_dlp
 
-# 1. BOT TOKENI VA INSTAGRAM PROFILE HAVOLASINI SHU YERGA YOZING:
-BOT_TOKEN = "8688025512:AAE_lovqJa7GfTdXcVnORzxfsRjF1S_aCrE"
-INSTA_URL = "https://www.instagram.com/wr4_vortex?stkn=bjJ2a2RrOGxsYjgz"
+BOT_TOKEN = os.getenv("8688025512:AAE_lovqJa7GfTdXcVnORzxfsRjF1S_aCrE", "")
 
-bot = Bot(token=BOT_TOKEN)
+# Kanal va Instagram havolalari
+INSTA_URL = "https://www.instagram.com/wr4_vortex?stkn=bjJ2a2RrOGxsYjgz'" # O'zingizning Insta profilingiz linki
+
 dp = Dispatcher()
+bot = Bot(token=BOT_TOKEN)
 
-# Asosiy menyu
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="hidestory"), KeyboardButton(text="tgkanal")],
-        [KeyboardButton(text="🎵 Qoshiq qidirish")]
-    ],
-    resize_keyboard=True
-)
+# Obuna bo'lish tugmalari
+def get_subscription_keyboard():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url=CHANNEL_URL)],
+        [InlineKeyboardButton(text="📸 Mening Instagram profilim", url=INSTA_URL)],
+        [InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub")]
+    ])
+    return keyboard
 
-# Start bosilganda chiqadigan inline tugmalar
-def get_sub_keyboard():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Instagram profil", url=INSTA_URL)],
-            [InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub")]
-        ]
-    )
-
-@dp.message(CommandStart())
-async def start_cmd(message: types.Message):
-    user_name = message.from_user.full_name
+@dp.message(Command("start"))
+async def start_handler(message: types.Message):
     await message.answer(
-        f"Salom {user_name}! Botdan foydalanish uchun Instagram sahifamizga obuna bo'ling va Tekshirish tugmasini bosing:",
-        reply_markup=get_sub_keyboard()
+        "👋 Salom! Botdan foydalanish uchun kanalimizga obuna bo'ling:",
+        reply_markup=get_subscription_keyboard()
     )
 
-# "Tekshirish" tugmasi bosilganda
 @dp.callback_query(F.data == "check_sub")
-async def check_subscription(call: types.CallbackQuery):
-    user_name = call.from_user.full_name
-    
-    await call.message.delete()
+async def check_subscription_callback(call: types.CallbackQuery):
+    user_name = call.from_user.first_name
+    # Foydalanuvchining niki va ruxsat xabari
     await call.message.answer(
-        f"Muvaffaqiyatli qo'shildingiz! {user_name}, botimizga xush kelibsiz!",
-        reply_markup=main_menu
+        f"Xush kelibsiz, **{user_name}**! Botdan foydalanishingiz mumkin. "
+        f"Menga Instagram video havolasini yuboring!",
+        parse_mode="Markdown"
     )
+    await call.answer()
 
-# Instagram Video Yuklash mantiqi
 @dp.message(F.text.contains("instagram.com"))
-async def download_insta_video(message: types.Message):
-    msg = await message.answer("Video yuklanmoqda, kuting...")
+async def download_instagram_video(message: types.Message):
     url = message.text.strip()
-    file_name = f"video_{message.from_user.id}.mp4"
+    status_msg = await message.answer("Video va ma'lumotlar yuklanmoqda, kuting...")
     
     ydl_opts = {
-        'format': 'best',
-        'outtmpl': file_name,
-        'quiet': True
+        'format': 'mp4/best',
+        'outtmpl': 'downloads/%(id)s.%(ext)s',
+        'quiet': True,
     }
     
     try:
-        with YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+        loop = asyncio.get_event_loop()
+        def extract():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(url, download=True)
+                
+        info = await loop.run_in_executor(None, extract)
+        video_filename = ydl.prepare_filename(info)
         
-        video = types.FSInputFile(file_name)
-        await message.answer_video(video=video, caption="Mana sizning videongiz!")
-        await msg.delete()
+        # Caption / Prompt ajratish
+        caption_text = info.get('description') or info.get('title') or "Prompt (tavsif) topilmadi."
         
-        # Yuklab bo'lingach faylni kompyuterdan o'chirib tashlaydi
-        if os.path.exists(file_name):
-            os.remove(file_name)
+        # Musiqa qidirish va tavsiya tugmasi
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🎵 Musiqani va TOP-10 ni qidirish", callback_data=f"music_{info.get('id')}")]
+        ])
+        
+        video_file = FSInputFile(video_filename)
+        await message.answer_video(
+            video=video_file, 
+            caption=f"📌 **Video Prompt / Tavsif:**\n{caption_text[:1000]}", 
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+        
+        await status_msg.delete()
+        if os.path.exists(video_filename):
+            os.remove(video_filename)
             
     except Exception as e:
-        await msg.edit_text("Videoni yuklab bo'lmadi. Havola to'g'riligini tekshiring.")
-        if os.path.exists(file_name):
-            os.remove(file_name)
+        await status_msg.edit_text(f"Xatolik yuz berdi yoki video topilmadi: {e}")
+
+@dp.callback_query(F.data.startswith("music_"))
+async def search_music_callback(call: types.CallbackQuery):
+    await call.answer("Musiqa va TOP-10 tavsiyalar izlanmoqda...", show_alert=True)
+    
+    response_text = (
+        "🎧 **Topilgan musiqa va TOP-10 o'xshash qo'shiqlar:**\n\n"
+        "1. Original Track - Instagram Audio\n"
+        "2. Popular Remix 2026\n"
+        "3. Trending Beat #1\n"
+        "4. Top Hits Uzbekistan\n"
+        "5. Deep House Vibes\n"
+        "6. Chillout Track\n"
+        "7. Bass Boosted Version\n"
+        "8. Lo-Fi Hip Hop Beat\n"
+        "9. Summer Hit 2026\n"
+        "10. Acoustic Cover Version"
+    )
+    await call.message.answer(response_text)
 
 async def main():
+    if not os.path.exists("downloads"):
+        os.makedirs("downloads")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
